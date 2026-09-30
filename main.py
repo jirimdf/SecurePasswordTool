@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import hmac
 import secrets
 import sqlite3
 
@@ -16,16 +17,22 @@ def delete_password(password_id):
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     cursor.execute('DELETE FROM passwords WHERE id = ?', (password_id,))
+    deleted = cursor.rowcount > 0
     conn.commit()
     conn.close()
+    return deleted
 
 def verify_hash(plaintext, hashed_info, pepper=None):
-    hash_type, iterations, salt, expected_hash = hashed_info.split('@')
-    iterations = int(iterations)
+    try:
+        hash_type, iterations, salt, expected_hash = hashed_info.split('@')
+        iterations = int(iterations)
+    except ValueError:
+        raise ValueError("Invalid hash format, expected <hash_type>@<iterations>@<salt>@<hash>")
     if pepper:
         plaintext += pepper
     hashed = hashlib.pbkdf2_hmac(hash_type, plaintext.encode('utf-8'), salt.encode('utf-8'), iterations)
-    return hashed.hex() == expected_hash
+    # Constant-time comparison, so the result can't be guessed from how long the check takes
+    return hmac.compare_digest(hashed.hex(), expected_hash)
 
 def create_database():
     conn = sqlite3.connect(DATABASE_FILE)
@@ -53,7 +60,7 @@ def main():
     parser.add_argument('--hash-type', metavar='<hash_type>', default='sha256', help='Hash type (default: sha256)')
     parser.add_argument('--iterations', metavar='<iterations>', type=int, default=100000, help='Number of iterations (default: 100000)')
     parser.add_argument('--pepper', metavar='<pepper>', help='Pepper value')
-    parser.add_argument('--delete', metavar='<password_id>', help='Delete saved hash with specified ID')
+    parser.add_argument('--delete', metavar='<password_id>', type=int, help='Delete saved hash with specified ID')
     args = parser.parse_args()
 
     if args.make:
@@ -64,13 +71,16 @@ def main():
         plaintext, hashed_info = args.verify
         if hashed_info.startswith("'") and hashed_info.endswith("'"):
             hashed_info = hashed_info[1:-1]
-        if verify_hash(plaintext, hashed_info, args.pepper):
-            print("Hashes match!")
-        else:
-            print("Hashes don't match!")
+        try:
+            match = verify_hash(plaintext, hashed_info, args.pepper)
+        except ValueError as e:
+            parser.error(str(e))
+        print("Hashes match!" if match else "Hashes don't match!")
     elif args.delete:
-        delete_password(args.delete)
-        print("Hash with ID {} deleted successfully.".format(args.delete))
+        if delete_password(args.delete):
+            print("Hash with ID {} deleted successfully.".format(args.delete))
+        else:
+            print("No hash with ID {} found.".format(args.delete))
     else:
         parser.print_help()
 

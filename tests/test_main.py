@@ -50,6 +50,17 @@ def test_database_insert_and_delete(tmp_path, monkeypatch):
         rows = conn.execute("SELECT id, hashed_password FROM passwords").fetchall()
     assert rows == [(1, "sha256@1000@salt@hash")]
 
-    main.delete_password(1)
+    assert main.delete_password(1) is True
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM passwords").fetchone()[0] == 0
+
+
+def test_verify_invalid_format():
+    with pytest.raises(ValueError):
+        main.verify_hash("secret", "not-a-hash")
+
+
+def test_delete_missing_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DATABASE_FILE", str(tmp_path / "passwords.db"))
+    main.create_database()
+    assert main.delete_password(42) is False
