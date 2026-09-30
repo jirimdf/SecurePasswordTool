@@ -1,5 +1,7 @@
 # Secure Password Tool
 
+[![Tests](https://github.com/jirimdf/SecurePasswordTool/actions/workflows/tests.yml/badge.svg)](https://github.com/jirimdf/SecurePasswordTool/actions/workflows/tests.yml)
+
 A command-line tool for hashing and verifying passwords in Python. It generates salted hashes using PBKDF2, supports an optional pepper, and stores the results in a local SQLite database.
 
 ## Features
@@ -46,6 +48,15 @@ python main.py --delete 2
 ```
 
 The hash info has the format `hash_type@iterations@salt@hash`. Wrap it in quotes when passing it on the command line.
+
+## Tests
+
+```bash
+pip install pytest
+python -m pytest
+```
+
+Tests run automatically on every push via GitHub Actions.
 
 ## Screenshots
 
